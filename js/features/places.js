@@ -1,5 +1,5 @@
 import { listPlaces } from '../core/data.js';
-import { STATUS } from '../core/constants.js';
+import { STATUS, TAG_NAMES } from '../core/constants.js';
 
 export async function renderPlaces(root, { prefectures, categories, filters, onFilter, onOpen, onAdd }) {
   const places = await listPlaces(filters);
@@ -28,10 +28,15 @@ export async function renderPlaces(root, { prefectures, categories, filters, onF
 
 function card(p) {
   const status = p.status === 'visited' ? 'visited' : 'want';
+  const tags = (p.outing_place_tags ?? [])
+    .map(row => row.outing_tags?.name)
+    .filter(tag => tag && TAG_NAMES.includes(tag))
+    .slice(0, 3);
   return `<article class="place-card" data-place="${p.id}">
-    <div class="card-top"><span class="badge ${status}">${STATUS[status]}</span><span>${p.outing_prefectures?.name ?? ''}</span></div>
+    <div class="card-top"><span class="badge ${status}">${STATUS[status]}</span><span>${escapeHtml(p.outing_prefectures?.name ?? '')}</span></div>
     <h3>${escapeHtml(p.name)}</h3>
     <p>${escapeHtml([p.city,p.outing_categories?.name].filter(Boolean).join(' ・ '))}</p>
+    ${tags.length ? '<div class="tag-chips compact">' + tags.map(tag => '<span class="tag-chip">' + escapeHtml(tag) + '</span>').join('') + '</div>' : ''}
     ${p.summary ? `<p class="muted">${escapeHtml(p.summary)}</p>` : ''}
   </article>`;
 }
