@@ -2,7 +2,7 @@ import { ensureOutingAuth } from './core/supabase.js';
 import { getPrefectures, getCategories } from './core/data.js';
 import { renderDashboard } from './features/dashboard.js';
 import { renderPlaces } from './features/places.js';
-import { renderPlaceDetail } from './features/place-detail.js';
+import { renderPlaceDetail } from './features/place-detail-v2.js';
 import { renderPlaceForm } from './features/place-form.js';
 
 const root = document.querySelector('#app');
