@@ -182,7 +182,7 @@ function applySearchResult(root, item) {
     if (!confirmed) return false;
   }
 
-  if (item.title) nameInput.value = item.title;
+  if (item.name || item.title) nameInput.value = item.name || item.title;
   if (item.url) urlInput.value = item.url;
   if (item.description) summaryInput.value = item.description;
   if (item.city) cityInput.value = item.city;
