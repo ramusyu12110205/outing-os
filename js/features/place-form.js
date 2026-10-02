@@ -9,8 +9,8 @@ export function renderPlaceForm(root, { place, prefectures, categories, onSave, 
     '<h1>' + (editing ? '場所を編集' : '場所を追加') + '</h1></div></section>' +
 
     '<section class="panel search-panel">' +
-      '<div class="panel-head"><div><h2>場所を検索して情報を取得</h2>' +
-      '<p class="form-help">Web検索の候補を確認して、登録フォームへ反映できます。</p></div></div>' +
+      '<div class="panel-head"><div><h2>場所を検索して自動入力</h2>' +
+      '<p class="form-help">場所名を検索すると、検索結果から登録項目を自動で埋めます。内容は保存前に確認できます。</p></div></div>' +
       '<div class="search-row"><input id="place-search-query" type="search" value="' + esc(place?.name) +
       '" placeholder="例：箱根ガラスの森美術館"><button type="button" class="primary" id="search-place">検索</button></div>' +
       '<div id="search-status" class="search-status"></div><div id="search-results"></div>' +
@@ -102,23 +102,35 @@ function setupSearch(root) {
     results.innerHTML = '';
 
     try {
-      const items = await searchPlaces(query);
-      if (!items.length) {
+      const { auto, results: items } = await searchPlaces(query);
+      if (!items.length || !auto) {
         status.textContent = '検索結果が見つかりませんでした。別の名前でも試せます。';
         return;
       }
-      status.textContent = items.length + '件の候補が見つかりました。';
 
-      results.innerHTML = '<div class="search-results">' +
-        items.map((item, index) => searchCard(item, index)).join('') +
-        '</div>';
+      applySearchResult(root, auto);
+      status.textContent =
+        auto.confidence === 'low'
+          ? '候補を自動選択しました。入力内容を確認してから保存してください。'
+          : '検索結果から自動入力しました。内容を確認してから保存してください。';
 
-      results.querySelectorAll('[data-result-index]').forEach(buttonEl => {
-        buttonEl.onclick = () => {
-          const item = items[Number(buttonEl.dataset.resultIndex)];
-          applySearchResult(root, item);
-        };
-      });
+      results.innerHTML =
+        '<div class="search-auto-note"><strong>自動選択：</strong> ' + esc(auto.title) +
+        '<br><small>' + esc(auto.url) + '</small></div>';
+
+      if (items.length > 1) {
+        results.innerHTML += '<details class="search-more"><summary>他の検索結果も確認する</summary>' +
+          '<div class="search-results">' + items.slice(1, 5).map((item, index) => searchCard(item, index + 1)).join('') +
+          '</div></details>';
+
+        results.querySelectorAll('[data-result-index]').forEach(buttonEl => {
+          buttonEl.onclick = () => {
+            const item = items[Number(buttonEl.dataset.resultIndex)];
+            applySearchResult(root, item);
+            status.textContent = '選択した検索結果をフォームへ反映しました。内容を確認して保存してください。';
+          };
+        });
+      }
     } catch (error) {
       status.textContent = error.message || '検索に失敗しました。時間をおいて再度お試しください。';
     } finally {
@@ -145,7 +157,7 @@ function searchCard(item, index) {
     '<a href="' + safeUrl(item.url) + '" target="_blank" rel="noopener noreferrer">' +
       esc(item.url) + '</a>' +
     (item.description ? '<p>' + esc(item.description) + '</p>' : '') +
-    '<button type="button" class="secondary" data-result-index="' + index + '">この候補を使用</button>' +
+    '<button type="button" class="secondary" data-result-index="' + index + '">この結果を使用</button>' +
   '</article>';
 }
 
@@ -154,27 +166,34 @@ function applySearchResult(root, item) {
   const urlInput = root.querySelector('[name="url"]');
   const cityInput = root.querySelector('[name="city"]');
   const prefSelect = root.querySelector('[name="prefecture_id"]');
+  const categorySelect = root.querySelector('[name="category_id"]');
+  const summaryInput = root.querySelector('[name="summary"]');
 
-  const hasExisting = Boolean(nameInput.value.trim() || urlInput.value.trim());
+  const hasExisting = Boolean(nameInput.value.trim() || urlInput.value.trim() || summaryInput.value.trim());
   if (hasExisting) {
     const confirmed = window.confirm(
-      'すでに入力されている場所名またはURLがあります。\n検索結果で上書きしますか？'
+      'すでに入力されている場所情報があります。\n検索結果で上書きしますか？'
     );
-    if (!confirmed) return;
+    if (!confirmed) return false;
   }
 
   if (item.title) nameInput.value = item.title;
   if (item.url) urlInput.value = item.url;
-
+  if (item.description) summaryInput.value = item.description;
   if (!cityInput.value.trim() && item.city) cityInput.value = item.city;
-  if (!prefSelect.value && item.prefecture) {
+
+  if (item.prefecture) {
     const option = [...prefSelect.options].find(o => o.textContent === item.prefecture);
     if (option) prefSelect.value = option.value;
   }
 
-  const status = root.querySelector('#search-status');
-  status.textContent = '候補を登録フォームへ反映しました。内容を確認して保存してください。';
+  if (item.category) {
+    const option = [...categorySelect.options].find(o => o.textContent === item.category);
+    if (option) categorySelect.value = option.value;
+  }
+
   nameInput.focus();
+  return true;
 }
 
 function field(label, control, full = false) {
