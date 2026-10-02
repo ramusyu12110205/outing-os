@@ -12,9 +12,9 @@ export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
       <div class="panel">
         <div class="detail-status"><span class="badge ${p.status}">${STATUS[p.status]}</span></div>
         <dl class="detail-list">
-          <dt>都道府県</dt><dd>${escapeHtml(p.outing_prefectures?.name ?? '')}</dd>
-          <dt>市区町村</dt><dd>${escapeHtml(p.city ?? '')}</dd>
-          <dt>カテゴリ</dt><dd>${escapeHtml(p.outing_categories?.name ?? '')}</dd>
+          <dt>都道府県</dt><dd>${display(p.outing_prefectures?.name)}</dd>
+          <dt>市区町村</dt><dd>${display(p.city)}</dd>
+          <dt>カテゴリ</dt><dd>${display(p.outing_categories?.name)}</dd>
           ${p.url ? `<dt>URL</dt><dd><a href="${safeUrl(p.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(p.url)}</a></dd>` : ''}
           <dt>概要</dt><dd>${nl(p.summary)}</dd>
           <dt>おすすめポイント</dt><dd>${nl(p.highlights)}</dd>
@@ -46,6 +46,13 @@ export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
     await renderPlaceDetail(root,id,{onBack,onEdit});
   });
 }
-function nl(s=''){return escapeHtml(s).replace(/\n/g,'<br>') || '<span class="muted">—</span>'}
+
+function display(value) {
+  return value == null || value === '' ? '<span class="muted">—</span>' : escapeHtml(value);
+}
+function nl(value) {
+  if (value == null || value === '') return '<span class="muted">—</span>';
+  return escapeHtml(value).replace(/\n/g,'<br>');
+}
 function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function safeUrl(value){try{const u=new URL(value);return ['http:','https:'].includes(u.protocol)?u.href:'#'}catch{return '#'}}
