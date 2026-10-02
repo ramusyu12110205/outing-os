@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js';
-import { DEFAULT_CATEGORIES } from './constants.js';
+import { DEFAULT_CATEGORIES, TAG_NAMES } from './constants.js';
 
 export async function seedCategories() {
   const { error } = await supabase.rpc('outing_seed_categories');
@@ -20,6 +20,13 @@ export async function getCategories() {
   return data ?? [];
 }
 
+export async function getTags() {
+  const { data, error } = await supabase.from('outing_tags')
+    .select('id,name,sort_order').order('sort_order').order('name');
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function createCategory(name) {
   const value = name.trim();
   if (!value) throw new Error('カテゴリ名を入力してください。');
@@ -31,7 +38,7 @@ export async function createCategory(name) {
 
 export async function listPlaces(filters = {}) {
   let q = supabase.from('outing_places')
-    .select('*, outing_prefectures(id,name), outing_categories(id,name)')
+    .select('*, outing_prefectures(id,name), outing_categories(id,name), outing_place_tags(outing_tags(id,name,sort_order))')
     .order('updated_at', { ascending: false });
   if (filters.status) q = q.eq('status', filters.status);
   if (filters.prefectureId) q = q.eq('prefecture_id', filters.prefectureId);
@@ -44,23 +51,48 @@ export async function listPlaces(filters = {}) {
 
 export async function getPlace(id) {
   const { data, error } = await supabase.from('outing_places')
-    .select('*, outing_prefectures(id,name), outing_categories(id,name), outing_visits(*)')
+    .select('*, outing_prefectures(id,name), outing_categories(id,name), outing_visits(*), outing_place_tags(outing_tags(id,name,sort_order))')
     .eq('id', id).single();
   if (error) throw error;
   return data;
 }
 
 export async function savePlace(payload, id = null) {
+  const tags = Array.isArray(payload?.tags) ? payload.tags : undefined;
+  const placePayload = { ...payload };
+  delete placePayload.tags;
+
   if (id) {
     const { data, error } = await supabase.from('outing_places')
-      .update(payload).eq('id', id).select().single();
+      .update(placePayload).eq('id', id).select().single();
     if (error) throw error;
+    if (tags !== undefined) await syncPlaceTags(id, tags);
     return data;
   }
+
   const { data, error } = await supabase.from('outing_places')
-    .insert(payload).select().single();
+    .insert(placePayload).select().single();
   if (error) throw error;
+  if (tags !== undefined) await syncPlaceTags(data.id, tags);
   return data;
+}
+
+async function syncPlaceTags(placeId, tags) {
+  const allowed = new Set(TAG_NAMES);
+  const names = [...new Set(tags.map(value => String(value).trim()).filter(name => allowed.has(name)))];
+  const { data: tagRows, error: tagError } = await supabase.from('outing_tags')
+    .select('id,name').in('name', names.length ? names : ['__no_such_tag__']);
+  if (tagError) throw tagError;
+
+  const { error: deleteError } = await supabase.from('outing_place_tags')
+    .delete().eq('place_id', placeId);
+  if (deleteError) throw deleteError;
+
+  if (!tagRows?.length) return;
+
+  const rows = tagRows.map(tag => ({ place_id: placeId, tag_id: tag.id }));
+  const { error: insertError } = await supabase.from('outing_place_tags').insert(rows);
+  if (insertError) throw insertError;
 }
 
 export async function deletePlace(id) {
