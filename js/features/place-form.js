@@ -1,8 +1,10 @@
-import { savePlace, createCategory } from '../core/data.js';
+import { savePlace } from '../core/data.js';
+import { TAG_GROUPS, TAG_NAMES } from '../core/constants.js';
 import { searchPlaces } from '../services/place-search.js';
 
 export function renderPlaceForm(root, { place, prefectures, categories, onSave, onCancel }) {
   const editing = Boolean(place);
+  const existingTags = getPlaceTags(place);
 
   root.innerHTML =
     '<section class="page-head"><div><button class="back" id="cancel-top">← 戻る</button>' +
@@ -10,7 +12,7 @@ export function renderPlaceForm(root, { place, prefectures, categories, onSave, 
 
     '<section class="panel search-panel">' +
       '<div class="panel-head"><div><h2>場所を検索して自動入力</h2>' +
-      '<p class="form-help">場所名を検索すると、検索結果から登録項目を自動で埋めます。内容は保存前に確認できます。</p></div></div>' +
+      '<p class="form-help">場所名を検索すると、主カテゴリ・特徴タグを含む登録項目を自動判定します。内容は保存前に確認・変更できます。</p></div></div>' +
       '<div class="search-row"><input id="place-search-query" type="search" value="' + esc(place?.name) +
       '" placeholder="例：箱根ガラスの森美術館"><button type="button" class="primary" id="search-place">検索</button></div>' +
       '<div id="search-status" class="search-status"></div><div id="search-results"></div>' +
@@ -24,16 +26,23 @@ export function renderPlaceForm(root, { place, prefectures, categories, onSave, 
             (String(place?.prefecture_id) === String(p.id) ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') +
           '</select>') +
         field('市区町村', '<input name="city" value="' + esc(place?.city) + '">') +
-        field('カテゴリ *', '<div class="inline"><select name="category_id" required><option value="">選択してください</option>' +
+        field('カテゴリ *', '<select name="category_id" required><option value="">選択してください</option>' +
           categories.map(c => '<option value="' + c.id + '"' +
             (String(place?.category_id) === String(c.id) ? ' selected' : '') + '>' + esc(c.name) + '</option>').join('') +
-          '</select><button type="button" class="secondary" id="new-cat">追加</button></div>') +
+          '</select>') +
         field('ステータス', '<select name="status"><option value="want"' +
           (place?.status !== 'visited' ? ' selected' : '') + '>行きたい</option><option value="visited"' +
           (place?.status === 'visited' ? ' selected' : '') + '>行った</option></select>') +
         field('URL', '<input name="url" type="url" value="' + esc(place?.url) + '" placeholder="https://...">') +
         field('概要', '<textarea name="summary" rows="3">' + esc(place?.summary) + '</textarea>', true) +
         field('おすすめポイント', '<textarea name="highlights" rows="4">' + esc(place?.highlights) + '</textarea>', true) +
+        '<div class="full tag-editor"><div class="tag-editor-title">特徴タグ</div>' +
+          '<p class="form-help">複数選択できます。検索で自動判定されたタグも、ここで追加・削除できます。</p>' +
+          TAG_GROUPS.map(group => '<fieldset class="tag-group"><legend>' + esc(group.name) + '</legend><div class="tag-options">' +
+            group.tags.map(tag => '<label class="tag-option"><input type="checkbox" name="tags" value="' + esc(tag) + '"' +
+              (existingTags.includes(tag) ? ' checked' : '') + '><span>' + esc(tag) + '</span></label>').join('') +
+          '</div></fieldset>').join('') +
+        '</div>' +
         field('メモ', '<textarea name="memo" rows="4">' + esc(place?.memo) + '</textarea>', true) +
       '</div>' +
       '<div class="form-actions"><button type="button" class="secondary" id="cancel">キャンセル</button>' +
@@ -44,27 +53,13 @@ export function renderPlaceForm(root, { place, prefectures, categories, onSave, 
   root.querySelector('#cancel-top').onclick = onCancel;
   setupSearch(root);
 
-  root.querySelector('#new-cat').onclick = () => {
-    const name = window.prompt('新しいカテゴリ名を入力してください');
-    if (!name || !name.trim()) return;
-    addCategory(name.trim());
-  };
-
-  async function addCategory(name) {
-    try {
-      const created = await createCategory(name);
-      const select = root.querySelector('[name="category_id"]');
-      select.insertAdjacentHTML('beforeend',
-        '<option value="' + created.id + '" selected>' + esc(created.name) + '</option>');
-    } catch (error) {
-      window.alert(error.message || 'カテゴリの追加に失敗しました。');
-    }
-  }
-
   root.querySelector('#place-form').onsubmit = async event => {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const payload = Object.fromEntries(fd.entries());
+    payload.tags = [...root.querySelectorAll('input[name="tags"]:checked')]
+      .map(input => input.value)
+      .filter(tag => TAG_NAMES.includes(tag));
     payload.prefecture_id = Number(payload.prefecture_id);
     payload.category_id = payload.category_id || null;
     payload.city = payload.city.trim() || null;
@@ -108,15 +103,20 @@ function setupSearch(root) {
         return;
       }
 
-      applySearchResult(root, auto);
-      status.textContent =
-        auto.confidence === 'low'
-          ? '候補を自動選択しました。入力内容を確認してから保存してください。'
-          : '検索結果から自動入力しました。内容を確認してから保存してください。';
+      const applied = applySearchResult(root, auto);
+      if (!applied) {
+        status.textContent = '検索結果はフォームに反映していません。';
+        return;
+      }
 
+      status.textContent = '検索結果から自動入力しました。内容を確認してから保存してください。';
       results.innerHTML =
-        '<div class="search-auto-note"><strong>自動選択：</strong> ' + esc(auto.title) +
-        '<br><small>' + esc(auto.url) + '</small></div>';
+        '<div class="search-auto-note">' +
+          '<div><strong>自動判定</strong></div>' +
+          '<div>主カテゴリ：<strong>' + esc(auto.category || 'その他') + '</strong></div>' +
+          '<div class="auto-tag-line">特徴： ' + renderTagChips(auto.tags ?? []) + '</div>' +
+          '<small>自動選択：' + esc(auto.title) + '<br>' + esc(auto.url) + '</small>' +
+        '</div>';
 
       if (items.length > 1) {
         results.innerHTML += '<details class="search-more"><summary>他の検索結果も確認する</summary>' +
@@ -126,8 +126,10 @@ function setupSearch(root) {
         results.querySelectorAll('[data-result-index]').forEach(buttonEl => {
           buttonEl.onclick = () => {
             const item = items[Number(buttonEl.dataset.resultIndex)];
-            applySearchResult(root, item);
-            status.textContent = '選択した検索結果をフォームへ反映しました。内容を確認して保存してください。';
+            const changed = applySearchResult(root, item);
+            if (changed) {
+              status.textContent = '選択した検索結果をフォームへ反映しました。内容を確認して保存してください。';
+            }
           };
         });
       }
@@ -169,7 +171,10 @@ function applySearchResult(root, item) {
   const categorySelect = root.querySelector('[name="category_id"]');
   const summaryInput = root.querySelector('[name="summary"]');
 
-  const hasExisting = Boolean(nameInput.value.trim() || urlInput.value.trim() || summaryInput.value.trim());
+  const hasExisting = Boolean(
+    nameInput.value.trim() || urlInput.value.trim() || summaryInput.value.trim() ||
+    root.querySelectorAll('input[name="tags"]:checked').length
+  );
   if (hasExisting) {
     const confirmed = window.confirm(
       'すでに入力されている場所情報があります。\n検索結果で上書きしますか？'
@@ -180,7 +185,7 @@ function applySearchResult(root, item) {
   if (item.title) nameInput.value = item.title;
   if (item.url) urlInput.value = item.url;
   if (item.description) summaryInput.value = item.description;
-  if (!cityInput.value.trim() && item.city) cityInput.value = item.city;
+  if (item.city) cityInput.value = item.city;
 
   if (item.prefecture) {
     const option = [...prefSelect.options].find(o => o.textContent === item.prefecture);
@@ -192,8 +197,26 @@ function applySearchResult(root, item) {
     if (option) categorySelect.value = option.value;
   }
 
+  const tagSet = new Set((item.tags ?? []).filter(tag => TAG_NAMES.includes(tag)));
+  root.querySelectorAll('input[name="tags"]').forEach(input => {
+    input.checked = tagSet.has(input.value);
+  });
+
   nameInput.focus();
   return true;
+}
+
+function getPlaceTags(place) {
+  return (place?.outing_place_tags ?? [])
+    .map(row => row.outing_tags?.name)
+    .filter(Boolean)
+    .filter(tag => TAG_NAMES.includes(tag));
+}
+
+function renderTagChips(tags) {
+  const valid = tags.filter(tag => TAG_NAMES.includes(tag));
+  if (!valid.length) return '<span class="muted">根拠を確認できた特徴なし</span>';
+  return valid.map(tag => '<span class="tag-chip">' + esc(tag) + '</span>').join(' ');
 }
 
 function field(label, control, full = false) {
