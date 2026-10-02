@@ -1,9 +1,10 @@
 import { getPlace, deletePlace, savePlace, saveVisit, deleteVisit } from '../core/data.js';
-import { STATUS } from '../core/constants.js';
+import { STATUS, TAG_NAMES } from '../core/constants.js';
 
 export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
   const p = await getPlace(id);
   const visits = [...(p.outing_visits ?? [])].sort((a,b)=>String(b.visited_on).localeCompare(String(a.visited_on)));
+  const tags = getPlaceTags(p);
 
   root.innerHTML = `
     <section class="page-head"><div><button class="back" id="back">← 一覧へ</button><h1>${escapeHtml(p.name)}</h1></div>
@@ -16,6 +17,7 @@ export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
           <dt>都道府県</dt><dd>${display(p.outing_prefectures?.name)}</dd>
           <dt>市区町村</dt><dd>${display(p.city)}</dd>
           <dt>カテゴリ</dt><dd>${display(p.outing_categories?.name)}</dd>
+          <dt>特徴</dt><dd>${renderTags(tags)}</dd>
           ${p.url ? `<dt>URL</dt><dd><a href="${safeUrl(p.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(p.url)}</a></dd>` : ''}
           <dt>概要</dt><dd>${display(p.summary)}</dd>
           <dt>おすすめポイント</dt><dd>${display(p.highlights)}</dd>
@@ -52,6 +54,17 @@ export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
       await renderPlaceDetail(root,id,{onBack,onEdit});
     };
   });
+}
+
+function getPlaceTags(place) {
+  return (place?.outing_place_tags ?? [])
+    .map(row => row.outing_tags?.name)
+    .filter(tag => tag && TAG_NAMES.includes(tag));
+}
+
+function renderTags(tags) {
+  if (!tags.length) return '<span class="muted">—</span>';
+  return '<div class="tag-chips">' + tags.map(tag => '<span class="tag-chip">' + escapeHtml(tag) + '</span>').join('') + '</div>';
 }
 
 function display(value) {
