@@ -113,9 +113,10 @@ function setupSearch(root) {
       results.innerHTML =
         '<div class="search-auto-note">' +
           '<div><strong>自動判定</strong></div>' +
+          '<div>正式名称：<strong>' + esc(auto.name || auto.title || '未確定') + '</strong></div>' +
           '<div>主カテゴリ：<strong>' + esc(auto.category || 'その他') + '</strong></div>' +
           '<div class="auto-tag-line">特徴： ' + renderTagChips(auto.tags ?? []) + '</div>' +
-          '<small>自動選択：' + esc(auto.title) + '<br>' + esc(auto.url) + '</small>' +
+          '<small>代表候補：' + esc(auto.title) + '<br>' + esc(auto.url) + '</small>' +
         '</div>';
 
       if (items.length > 1) {
@@ -155,7 +156,8 @@ function searchCard(item, index) {
 
   return '<article class="search-result-card">' +
     '<div class="search-result-top"><span class="badge">' + type + '</span></div>' +
-    '<h3>' + esc(item.title) + '</h3>' +
+    '<h3>' + esc(item.name || item.title) + '</h3>' +
+    '<p class="muted">掲載タイトル：' + esc(item.title) + '</p>'
     '<a href="' + safeUrl(item.url) + '" target="_blank" rel="noopener noreferrer">' +
       esc(item.url) + '</a>' +
     (item.description ? '<p>' + esc(item.description) + '</p>' : '') +
