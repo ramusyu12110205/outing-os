@@ -4,7 +4,7 @@ export async function searchPlaces(query) {
   const value = String(query ?? '').trim();
   if (!value) return { auto: null, results: [] };
 
-  const { data, error } = await supabase.functions.invoke('search-places', {
+  const { data, error } = await supabase.functions.invoke('search-places-v2', {
     body: { query: value }
   });
 
