@@ -116,7 +116,7 @@ function setupSearch(root) {
           '<div>正式名称：<strong>' + esc(auto.name || auto.title || '未確定') + '</strong></div>' +
           '<div>主カテゴリ：<strong>' + esc(auto.category || 'その他') + '</strong></div>' +
           (auto.summary ? '<div class="auto-preview"><strong>概要：</strong>' + esc(auto.summary) + '</div>' : '<div class="auto-preview"><strong>概要：</strong>自動生成されませんでした</div>') +
-          (auto._geminiDebug ? '<div class="auto-preview"><small>概要生成診断：Gemini設定=' + (auto._geminiDebug.configured ? 'OK' : 'なし') + ' / 入力=' + auto._geminiDebug.candidates + '件 / 生成=' + (auto._geminiDebug.generated ? '成功' : '失敗') + '</small></div>' : '') +
+          (auto._geminiDebug ? '<div class="auto-preview"><small>概要生成診断：Gemini設定=' + (auto._geminiDebug.configured ? 'OK' : 'なし') + ' / 入力=' + auto._geminiDebug.candidates + '件 / 生成=' + (auto._geminiDebug.generated ? '成功' : '失敗') + (auto._geminiDebug.error ? ' / エラー=' + esc(auto._geminiDebug.error) : '') + '</small></div>' : '') +
           (auto.highlights ? '<div class="auto-preview"><strong>おすすめポイント：</strong><br>' + esc(auto.highlights).replace(/\n/g, '<br>') + '</div>' : '') +
           '<div class="auto-tag-line">特徴： ' + renderTagChips(auto.tags ?? []) + '</div>' +
           '<small>代表候補：' + esc(auto.title) + '<br>' + esc(auto.url) + '</small>' +
