@@ -115,6 +115,8 @@ function setupSearch(root) {
           '<div><strong>自動判定</strong></div>' +
           '<div>正式名称：<strong>' + esc(auto.name || auto.title || '未確定') + '</strong></div>' +
           '<div>主カテゴリ：<strong>' + esc(auto.category || 'その他') + '</strong></div>' +
+          (auto.summary ? '<div class="auto-preview"><strong>概要：</strong>' + esc(auto.summary) + '</div>' : '') +
+          (auto.highlights ? '<div class="auto-preview"><strong>おすすめポイント：</strong><br>' + esc(auto.highlights).replace(/\n/g, '<br>') + '</div>' : '') +
           '<div class="auto-tag-line">特徴： ' + renderTagChips(auto.tags ?? []) + '</div>' +
           '<small>代表候補：' + esc(auto.title) + '<br>' + esc(auto.url) + '</small>' +
         '</div>';
@@ -172,9 +174,10 @@ function applySearchResult(root, item) {
   const prefSelect = root.querySelector('[name="prefecture_id"]');
   const categorySelect = root.querySelector('[name="category_id"]');
   const summaryInput = root.querySelector('[name="summary"]');
+  const highlightsInput = root.querySelector('[name="highlights"]');
 
   const hasExisting = Boolean(
-    nameInput.value.trim() || urlInput.value.trim() || summaryInput.value.trim() ||
+    nameInput.value.trim() || urlInput.value.trim() || summaryInput.value.trim() || highlightsInput.value.trim() ||
     root.querySelectorAll('input[name="tags"]:checked').length
   );
   if (hasExisting) {
@@ -186,7 +189,9 @@ function applySearchResult(root, item) {
 
   if (item.name || item.title) nameInput.value = item.name || item.title;
   if (item.url) urlInput.value = item.url;
-  if (item.description) summaryInput.value = item.description;
+  if (item.summary) summaryInput.value = item.summary;
+  else if (item.description) summaryInput.value = item.description;
+  if (item.highlights) highlightsInput.value = item.highlights;
   if (item.city) cityInput.value = item.city;
 
   if (item.prefecture) {
