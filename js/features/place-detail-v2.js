@@ -1,5 +1,6 @@
 import { getPlace, deletePlace, savePlace, saveVisit, deleteVisit } from '../core/data.js';
 import { STATUS, TAG_NAMES } from '../core/constants.js';
+import { searchRelatedPlaces } from '../services/place-search.js';
 
 export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
   const p = await getPlace(id);
@@ -28,6 +29,13 @@ export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
         <div class="panel-head"><h2>訪問記録</h2><button class="primary small" id="add-visit">＋ 記録</button></div>
         ${visits.length ? visits.map(v=>`<div class="visit"><div><strong>${escapeHtml(v.visited_on ?? '')}</strong><p>${display(v.memo)}</p></div><button class="link danger-text" data-visit="${v.id}">削除</button></div>`).join('') : '<p class="empty">まだ訪問記録がありません。</p>'}
       </div>
+    </section>
+    <section class="panel related-panel">
+      <div class="panel-head">
+        <div><h2>関連施設</h2><p class="muted">この施設の敷地内・施設内にある関連施設を、必要なときだけ検索します。</p></div>
+        <button class="secondary" id="related-search">関連施設を検索</button>
+      </div>
+      <div id="related-results"><p class="empty">必要なときに「関連施設を検索」を押してください。</p></div>
     </section>`;
 
   root.querySelector('#back').onclick = onBack;
@@ -54,6 +62,26 @@ export async function renderPlaceDetail(root, id, { onBack, onEdit }) {
       await renderPlaceDetail(root,id,{onBack,onEdit});
     };
   });
+
+  root.querySelector('#related-search').onclick = async () => {
+    const button = root.querySelector('#related-search');
+    const target = root.querySelector('#related-results');
+    button.disabled = true;
+    button.textContent = '検索中…';
+    target.innerHTML = '<p class="loading">関連施設を検索しています…</p>';
+    try {
+      const rows = await searchRelatedPlaces(p.name);
+      target.innerHTML = rows.length
+        ? rows.map(row => `<article class="related-item"><div><h3>${escapeHtml(row.name)}</h3><p>${display(row.summary)}</p><p class="muted">${display(row.reason)}</p></div>${row.url ? `<a class="secondary" href="${safeUrl(row.url)}" target="_blank" rel="noopener noreferrer">公式・情報を見る</a>` : ''}</article>`).join('')
+        : '<p class="empty">関連施設を確認できませんでした。</p>';
+    } catch (e) {
+      console.error(e);
+      target.innerHTML = `<p class="error-text">${escapeHtml(e.message || '関連施設の検索に失敗しました。')}</p>`;
+    } finally {
+      button.disabled = false;
+      button.textContent = '再検索';
+    }
+  };
 }
 
 function getPlaceTags(place) {
