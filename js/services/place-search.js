@@ -4,8 +4,6 @@ export async function searchPlaces(query) {
   const value = String(query ?? '').trim();
   if (!value) return { auto: null, results: [] };
 
-  // 検索自動入力は現在の search-places Edge Function を使用する。
-  // v2 側に残っていた旧 Gemini モデル参照を避ける。
   const { data, error } = await supabase.functions.invoke('search-places', {
     body: { query: value }
   });
@@ -15,8 +13,21 @@ export async function searchPlaces(query) {
     throw new Error(data?.error || '検索結果を取得できませんでした。');
   }
 
-  return {
-    auto: data.auto ?? null,
-    results: data.results
-  };
+  return { auto: data.auto ?? null, results: data.results };
+}
+
+export async function searchRelatedPlaces(query) {
+  const value = String(query ?? '').trim();
+  if (!value) return [];
+
+  const { data, error } = await supabase.functions.invoke('search-places', {
+    body: { query: value, mode: 'related' }
+  });
+
+  if (error) throw new Error(error.message || '関連施設の検索に失敗しました。');
+  if (!data || !Array.isArray(data.related)) {
+    throw new Error(data?.error || '関連施設を取得できませんでした。');
+  }
+
+  return data.related;
 }
